@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rwanda Connect - Interactive Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Custom - Primary Blue (#007BFF), Secondary Green (#28A745), Accent Yellow (#FFC107), Neutrals -->
+    <!-- Application Structure Plan: A single-page application (SPA) with distinct <section> elements acting as pages. Navigation uses history.pushState and popstate for full browser back/forward support, making page transitions seamless. New signup pages for Youth and Contributors gather profile data before directing to their respective dashboards. A 'role-selection' page allows diaspora professionals to choose their contribution field. A chat overlay provides direct messaging. Explicit 'Back' buttons are added to critical navigation steps (signup, role selection) to enhance user control and intuitive flow. This structure prioritizes a multi-page user experience within a single HTML file, enhancing clarity, user flow, and interactivity for each distinct function. -->
+    <!-- Visualization & Content Choices: User Dashboards -> Goal (Inform/Track Progress) -> Viz (Bar & Doughnut Charts) -> Interaction (Dynamic updates from mock backend data, re-rendered on navigation) -> Justification (Provides immediate, visual summaries of user status and impact, key for engagement) -> Library (Chart.js on Canvas). Mentor/Job Lists, Events, Resources -> Goal (Organize/Compare/Guide) -> Viz (Card-based grid/list) -> Interaction (JS-powered filtering, search, and detail viewing with mock data, simulating backend fetch) -> Justification (Cards offer quick information scanning; filters improve discoverability; mock data ensures immediate interactivity) -> Library/Method (HTML/Tailwind + Vanilla JS). Signup Forms -> Goal (Data Input) -> Viz (Structured form) -> Interaction (Form submission with mock backend POST, explicit back button) -> Justification (Standard for user onboarding, back button for flow control). Chat Interface -> Goal (Communication) -> Viz (Modal overlay with input) -> Interaction (Open/close, send message placeholder) -> Justification (Facilitates direct user connection without leaving the current view). Custom Message Box -> Goal (Inform user without browser interruption) -> Viz (Overlay UI) -> Interaction (Show/hide) -> Justification (Replaces native alert for better UX control). -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container { height: 350px; }
+        }
+        .sidebar { transform: translateX(-100%); transition: transform 0.3s ease-in-out; }
+        .sidebar.open { transform: translateX(0); }
+        /* Custom Message Box Styles */
+        .message-box-overlay, .chat-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .message-box, .chat-box {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            position: relative;
+        }
+        .chat-box {
+            max-width: 600px;
+            height: 80%;
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background-color: #f8fafc;
+        }
+        .chat-input-area {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .chat-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body class="bg-neutral-100 text-neutral-800">
+
+    <div id="app-container" class="min-h-screen">
+        <header id="main-header" class="bg-white/80 backdrop-blur-lg shadow-sm sticky top-0 z-40">
+            <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
+                <a href="#home" class="nav-link text-2xl font-bold text-blue-600">Rwanda Connect</a>
+                <div class="hidden md:flex items-center space-x-6">
+                    <a href="#home" class="nav-link text-neutral-600 hover:text-blue-600">Home</a>
+                    <a href="#find-mentors" class="nav-link text-neutral-600 hover:text-blue-600">Find Mentors</a>
+                    <a href="#events" class="nav-link text-neutral-600 hover:text-blue-600">Events</a>
+                    <a href="#jobs" class="nav-link text-neutral-600 hover:text-blue-600">Jobs</a>
+                    <a href="#resources" class="nav-link text-neutral-600 hover:text-blue-600">Resources</a>
+                </div>
+                <div class="hidden md:flex items-center space-x-2">
+                    <button id="login-btn-desktop" class="px-4 py-2 text-neutral-600 font-medium rounded-lg hover:bg-neutral-100">Login</button>
+                    <button id="signup-btn-desktop" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">Sign Up</button>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button" class="text-neutral-600 focus:outline-none">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                    </button>
+                </div>
+            </nav>
+            <div id="mobile-menu" class="hidden md:hidden px-6 pt-2 pb-4 space-y-2">
+                <a href="#home" class="nav-link block text-neutral-600 hover:text-blue-600">Home</a>
+                <a href="#find-mentors" class="nav-link block text-neutral-600 hover:text-blue-600">Find Mentors</a>
+                <a href="#events" class="nav-link block text-neutral-600 hover:text-blue-600">Events</a>
+                <a href="#jobs" class="nav-link block text-neutral-600 hover:text-blue-600">Jobs</a>
+                <a href="#resources" class="nav-link block text-neutral-600 hover:text-blue-600">Resources</a>
+                <div class="border-t border-neutral-200 pt-4 space-y-2">
+                    <button class="w-full text-left px-4 py-2 text-neutral-600 font-medium rounded-lg hover:bg-neutral-100">Login</button>
+                    <button class="w-full text-left px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">Sign Up</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <section id="home" class="page-section active">
+                <div class="bg-white">
+                    <div class="container mx-auto px-6 py-16 md:py-24 text-center">
+                        <h1 class="text-4xl md:text-6xl font-bold text-neutral-800 leading-tight">Unlock Your Potential: Connect with Global Rwandan Expertise.</h1>
+                        <p class="mt-4 text-lg md:text-xl text-neutral-600 max-w-3xl mx-auto">Bridging Rwandan Youth with Diaspora Professionals for Mentorship, Skill Development, and Career Success.</p>
+                        <div class="mt-8 flex justify-center gap-4">
+                            <button id="join-youth-btn" class="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold text-lg hover:bg-blue-700 transition">Join as Youth</button>
+                            <button id="contribute-expertise-link" class="bg-green-600 text-white px-8 py-3 rounded-lg font-semibold text-lg hover:bg-green-700 transition">Contribute Your Expertise</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="container mx-auto px-6 py-16">
+                    <div class="text-center mb-12">
+                        <h2 class="text-3xl font-bold">How It Works</h2>
+                        <p class="text-neutral-600 mt-2">A simple path to growth and impact.</p>
+                    </div>
+                    <div class="grid md:grid-cols-3 gap-8 text-center">
+                        <div class="bg-white p-8 rounded-xl shadow-md">
+                            <div class="text-blue-600 text-5xl mb-4">1</div>
+                            <h3 class="text-xl font-semibold mb-2">Create Your Profile</h3>
+                            <p class="text-neutral-600">Tell us about your goals and expertise. A detailed profile helps us find your perfect match.</p>
+                        </div>
+                        <div class="bg-white p-8 rounded-xl shadow-md">
+                            <div class="text-green-600 text-5xl mb-4">2</div>
+                            <h3 class="text-xl font-semibold mb-2">Get Matched</h3>
+                            <p class="text-neutral-600">Our smart algorithm suggests mentors or mentees that align with your aspirations and skills.</p>
+                        </div>
+                        <div class="bg-white p-8 rounded-xl shadow-md">
+                            <div class="text-yellow-500 text-5xl mb-4">3</div>
+                            <h3 class="text-xl font-semibold mb-2">Grow & Contribute</h3>
+                            <p class="text-neutral-600">Start your mentorship journey, attend workshops, and unlock new opportunities together.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="youth-signup" class="page-section container mx-auto px-6 py-16">
+                <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md relative">
+                    <button class="back-btn absolute top-4 left-4 p-2 rounded-full bg-neutral-100 hover:bg-neutral-200">
+                        <svg class="w-6 h-6 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <h2 class="text-3xl font-bold text-center mb-8 mt-4">Create Your Youth Profile</h2>
+                    <form id="youth-signup-form" class="space-y-6">
+                        <div>
+                            <label for="youth-name" class="block text-sm font-medium text-neutral-700">Full Name</label>
+                            <input type="text" id="youth-name" name="name" required class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="youth-email" class="block text-sm font-medium text-neutral-700">Email</label>
+                            <input type="email" id="youth-email" name="email" required class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="youth-password" class="block text-sm font-medium text-neutral-700">Password</label>
+                            <input type="password" id="youth-password" name="password" required class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="youth-education" class="block text-sm font-medium text-neutral-700">Education Level</label>
+                            <input type="text" id="youth-education" name="education" class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="youth-interests" class="block text-sm font-medium text-neutral-700">Career Interests (comma-separated)</label>
+                            <input type="text" id="youth-interests" name="interests" class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2" placeholder="e.g., Tech, Finance, Healthcare">
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700">Create Profile & Go to Dashboard</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="contributor-signup" class="page-section container mx-auto px-6 py-16">
+                <div class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md relative">
+                    <button class="back-btn absolute top-4 left-4 p-2 rounded-full bg-neutral-100 hover:bg-neutral-200">
+                        <svg class="w-6 h-6 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <h2 class="text-3xl font-bold text-center mb-8 mt-4">Create Your Contributor Profile</h2>
+                    <form id="contributor-signup-form" class="space-y-6">
+                        <div>
+                            <label for="contributor-name" class="block text-sm font-medium text-neutral-700">Full Name</label>
+                            <input type="text" id="contributor-name" name="name" required class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="contributor-email" class="block text-sm font-medium text-neutral-700">Email</label>
+                            <input type="email" id="contributor-email" name="email" required class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="contributor-password" class="block text-sm font-medium text-neutral-700">Password</label>
+                            <input type="password" id="contributor-password" name="password" required class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="contributor-profession" class="block text-sm font-medium text-neutral-700">Profession/Title</label>
+                            <input type="text" id="contributor-profession" name="profession" class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2">
+                        </div>
+                        <div>
+                            <label for="contributor-industry" class="block text-sm font-medium text-neutral-700">Industry (comma-separated)</label>
+                            <input type="text" id="contributor-industry" name="industry" class="mt-1 block w-full border border-neutral-300 rounded-md shadow-sm p-2" placeholder="e.g., Tech, Finance, Education">
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700">Create Profile & Choose Role</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="role-selection" class="page-section container mx-auto px-6 py-16">
+                <div class="max-w-5xl mx-auto relative">
+                    <button class="back-btn absolute top-0 left-0 p-2 rounded-full bg-neutral-100 hover:bg-neutral-200">
+                        <svg class="w-6 h-6 text-neutral-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <h2 class="text-3xl font-bold text-center mb-2">Choose How You'd Like to Contribute</h2>
+                    <p class="text-neutral-600 text-center mb-8 max-w-2xl mx-auto">Your expertise can empower Rwandan youth in many ways. Select the role that best fits your passion and availability.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div class="bg-white p-6 rounded-xl shadow-md text-center transform hover:scale-105 transition-transform cursor-pointer role-select-card" data-role="mentor">
+                            <span class="text-5xl mb-4 block">👨‍🏫</span>
+                            <h3 class="text-xl font-bold mb-2">Mentor</h3>
+                            <p class="text-neutral-600">Provide one-on-one guidance, share career insights, and support long-term professional development.</p>
+                            <button class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Select Role</button>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md text-center transform hover:scale-105 transition-transform cursor-pointer role-select-card" data-role="skills-trainer">
+                            <span class="text-5xl mb-4 block">💡</span>
+                            <h3 class="text-xl font-bold mb-2">Skills Trainer</h3>
+                            <p class="text-neutral-600">Lead workshops or create resources to teach specific technical or soft skills to groups of youth.</p>
+                            <button class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Select Role</button>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md text-center transform hover:scale-105 transition-transform cursor-pointer role-select-card" data-role="career-coach">
+                            <span class="text-5xl mb-4 block">🚀</span>
+                            <h3 class="text-xl font-bold mb-2">Career Coach</h3>
+                            <p class="text-neutral-600">Assist with resume building, interview preparation, and job search strategies for immediate impact.</p>
+                            <button class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Select Role</button>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md text-center transform hover:scale-105 transition-transform cursor-pointer role-select-card" data-role="network-connector">
+                            <span class="text-5xl mb-4 block">🤝</span>
+                            <h3 class="text-xl font-bold mb-2">Network Connector</h3>
+                            <p class="text-neutral-600">Bridge youth to professional networks, industry contacts, and potential job or internship leads.</p>
+                            <button class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Select Role</button>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md text-center transform hover:scale-105 transition-transform cursor-pointer role-select-card" data-role="guest-speaker">
+                            <span class="text-5xl mb-4 block">🎤</span>
+                            <h3 class="text-xl font-bold mb-2">Guest Speaker</h3>
+                            <p class="text-neutral-600">Share your journey and insights in inspiring talks or panel discussions on specific topics.</p>
+                            <button class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Select Role</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="youth-dashboard" class="page-section">
+                <div class="flex">
+                    <div id="youth-sidebar" class="sidebar fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-50 p-4 md:relative md:translate-x-0 md:shadow-none">
+                        <div class="flex items-center mb-8">
+                            <img src="https://placehold.co/40x40/007BFF/FFFFFF?text=J" alt="User Avatar" class="w-10 h-10 rounded-full mr-3">
+                            <div>
+                                <h3 class="font-bold">Jane Doe</h3>
+                                <p class="text-sm text-neutral-500">Mentee</p>
+                            </div>
+                        </div>
+                        <nav class="space-y-2">
+                            <a href="#youth-dashboard" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-700 bg-blue-100 rounded-lg"><span class="mr-3">🏠</span>Dashboard</a>
+                            <a href="#find-mentors" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg"><span class="mr-3">🔍</span>Find Mentors</a>
+                            <a href="#events" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg"><span class="mr-3">📅</span>Events</a>
+                            <a href="#jobs" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg"><span class="mr-3">💼</span>Job Board</a>
+                            <a href="#resources" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg"><span class="mr-3">📚</span>Resources</a>
+                        </nav>
+                    </div>
+                    <div class="flex-1 p-6 md:p-10 bg-neutral-50">
+                        <button id="youth-sidebar-toggle" class="md:hidden mb-4 p-2 bg-white rounded-md shadow">Menu</button>
+                        <h1 class="text-3xl font-bold mb-6">Welcome, Jane!</h1>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-2 space-y-6">
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">My Mentor</h2>
+                                    <div class="flex items-center">
+                                        <img src="https://placehold.co/60x60/28A745/FFFFFF?text=A" alt="Mentor Avatar" class="w-16 h-16 rounded-full mr-4">
+                                        <div>
+                                            <h3 class="font-bold text-lg">Dr. Aisha Kamanzi</h3>
+                                            <p class="text-neutral-600">Senior Data Scientist @ TechCorp</p>
+                                            <div class="mt-2 space-x-2">
+                                                <button class="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full open-chat-btn" data-user-id="mentor1">Message</button>
+                                                <button class="text-sm bg-neutral-100 px-3 py-1 rounded-full">Schedule</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">Recommended Mentors</h2>
+                                    <div id="recommended-mentors-container" class="space-y-4"></div>
+                                </div>
+                            </div>
+                            <div class="space-y-6">
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">My Progress</h2>
+                                    <p class="text-sm text-neutral-600 mb-2">You are on track with your career readiness goals. Keep up the great work!</p>
+                                    <div class="chart-container h-64">
+                                        <canvas id="youthProgressChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">Need More Help?</h2>
+                                    <p class="text-sm text-neutral-600 mb-4">If your mentorship requests aren't being accepted or you need general assistance, our support team is here for you.</p>
+                                    <button id="request-assistance-btn" class="w-full bg-yellow-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600">Request General Assistance</button>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">Upcoming Events</h2>
+                                    <ul class="space-y-3 text-sm">
+                                        <li class="flex justify-between"><span>Tech Interview Prep</span><span class="font-medium text-neutral-500">Aug 28</span></li>
+                                        <li class="flex justify-between"><span>Networking 101</span><span class="font-medium text-neutral-500">Sep 05</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="mentor-dashboard" class="page-section">
+                 <div class="flex">
+                    <div id="mentor-sidebar" class="sidebar fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-50 p-4 md:relative md:translate-x-0 md:shadow-none">
+                        <div class="flex items-center mb-8">
+                            <img src="https://placehold.co/40x40/28A745/FFFFFF?text=A" alt="User Avatar" class="w-10 h-10 rounded-full mr-3">
+                            <div>
+                                <h3 class="font-bold">Dr. Aisha Kamanzi</h3>
+                                <p class="text-sm text-neutral-500">Mentor</p>
+                            </div>
+                        </div>
+                        <nav class="space-y-2">
+                            <a href="#mentor-dashboard" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-700 bg-green-100 rounded-lg"><span class="mr-3">🏠</span>Dashboard</a>
+                            <a href="#events" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg"><span class="mr-3">📅</span>Events</a>
+                            <a href="#resources" class="dashboard-nav-link flex items-center px-3 py-2 text-neutral-600 hover:bg-neutral-100 rounded-lg"><span class="mr-3">📚</span>Resources</a>
+                        </nav>
+                    </div>
+                    <div class="flex-1 p-6 md:p-10 bg-neutral-50">
+                        <button id="mentor-sidebar-toggle" class="md:hidden mb-4 p-2 bg-white rounded-md shadow">Menu</button>
+                        <h1 class="text-3xl font-bold mb-6">Welcome, Dr. Kamanzi!</h1>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-2 space-y-6">
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">My Mentees (3)</h2>
+                                    <div class="space-y-4">
+                                        <div class="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                                            <div class="flex items-center">
+                                                <img src="https://placehold.co/40x40/007BFF/FFFFFF?text=J" alt="Mentee Avatar" class="w-10 h-10 rounded-full mr-4">
+                                                <div>
+                                                    <h4 class="font-semibold">Jane Doe</h4>
+                                                    <p class="text-sm text-neutral-500">Goal: Prepare for Tech Interview</p>
+                                                </div>
+                                            </div>
+                                            <button class="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full open-chat-btn" data-user-id="youth1">Message</button>
+                                        </div>
+                                        <div class="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                                            <div class="flex items-center">
+                                                <img src="https://placehold.co/40x40/FFC107/FFFFFF?text=P" alt="Mentee Avatar" class="w-10 h-10 rounded-full mr-4">
+                                                <div>
+                                                    <h4 class="font-semibold">Peter Gisa</h4>
+                                                    <p class="text-sm text-neutral-500">Aspiring Product Manager</p>
+                                                </div>
+                                            </div>
+                                            <button class="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full open-chat-btn" data-user-id="youth2">Message</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">Mentorship Requests (1)</h2>
+                                    <div class="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                                        <div class="flex items-center">
+                                            <img src="https://placehold.co/40x40/FFC107/FFFFFF?text=P" alt="Mentee Avatar" class="w-10 h-10 rounded-full mr-4">
+                                            <div>
+                                                <h4 class="font-semibold">Peter Gisa</h4>
+                                                <p class="text-sm text-neutral-500">Aspiring Product Manager</p>
+                                            </div>
+                                        </div>
+                                        <div class="space-x-2">
+                                            <button class="text-sm bg-green-500 text-white px-3 py-1 rounded-full">Accept</button>
+                                            <button class="text-sm bg-neutral-200 px-3 py-1 rounded-full">Decline</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-6">
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <h2 class="text-xl font-semibold mb-4">My Impact</h2>
+                                    <p class="text-sm text-neutral-600 mb-2">Visualizing your contribution to empowering the next generation of Rwandan leaders.</p>
+                                    <div class="chart-container h-64">
+                                        <canvas id="mentorImpactChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="find-mentors" class="page-section container mx-auto px-6 py-16">
+                <h2 class="text-3xl font-bold text-center mb-2">Find Your Mentor</h2>
+                <p class="text-neutral-600 text-center mb-8">Connect with professionals who can guide your career.</p>
+                <div class="mb-8 bg-white p-4 rounded-xl shadow-md flex flex-wrap gap-4 items-center">
+                    <input type="text" id="mentor-search" placeholder="Search by name, expertise..." class="flex-grow p-2 border border-neutral-300 rounded-lg">
+                    <div class="flex flex-wrap gap-2" id="mentor-filter-buttons">
+                        <button class="mentor-filter-btn bg-blue-500 text-white px-4 py-2 rounded-lg" data-filter="all">All</button>
+                        <button class="mentor-filter-btn bg-neutral-200 text-neutral-700 px-4 py-2 rounded-lg" data-filter="Tech">Tech</button>
+                        <button class="mentor-filter-btn bg-neutral-200 text-neutral-700 px-4 py-2 rounded-lg" data-filter="Finance">Finance</button>
+                        <button class="mentor-filter-btn bg-neutral-200 text-neutral-700 px-4 py-2 rounded-lg" data-filter="Healthcare">Healthcare</button>
+                    </div>
+                </div>
+                <div id="mentors-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            </section>
+
+            <section id="events" class="page-section container mx-auto px-6 py-16">
+                <h2 class="text-3xl font-bold text-center mb-2">Events & Workshops</h2>
+                <p class="text-neutral-600 text-center mb-8">Learn from experts and grow your network.</p>
+                <div id="events-list" class="space-y-6 max-w-4xl mx-auto"></div>
+            </section>
+
+            <section id="jobs" class="page-section container mx-auto px-6 py-16">
+                <h2 class="text-3xl font-bold text-center mb-2">Job Board</h2>
+                <p class="text-neutral-600 text-center mb-8">Discover your next career opportunity.</p>
+                <div id="jobs-list" class="space-y-4 max-w-4xl mx-auto"></div>
+            </section>
+
+            <section id="resources" class="page-section container mx-auto px-6 py-16">
+                <h2 class="text-3xl font-bold text-center mb-2">Resource Library</h2>
+                <p class="text-neutral-600 text-center mb-8">Curated content to help you succeed.</p>
+                <div id="resources-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            </section>
+        </main>
+
+        <div id="message-box-container" class="message-box-overlay hidden">
+            <div class="message-box">
+                <h3 id="message-box-title" class="text-xl font-bold mb-4"></h3>
+                <p id="message-box-content" class="text-neutral-700 mb-6"></p>
+                <button id="message-box-close" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Close</button>
+            </div>
+        </div>
+
+        <div id="chat-overlay" class="chat-overlay hidden">
+            <div class="chat-box">
+                <button class="chat-close-btn" id="chat-close-btn">&times;</button>
+                <h3 id="chat-header" class="text-xl font-bold mb-4">Chat with [User Name]</h3>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="text-neutral-500 text-sm mb-2">Start a conversation!</div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Type your message..." class="flex-grow p-2 border border-neutral-300 rounded-md">
+                    <button id="chat-send-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Replace YOUR_FIREBASE_PROJECT_ID with your actual Firebase project ID
+        const API_BASE_URL = 'https://us-central1-YOUR_FIREBASE_PROJECT_ID.cloudfunctions.net/api'; 
+
+        // Current logged-in user state (for prototype, this is mock)
+        let currentUser = null; // { id: 'youth1', name: 'Jane Doe', role: 'youth' } or { id: 'mentor1', name: 'Dr. Aisha Kamanzi', role: 'mentor' }
+
+        // Helper function to show custom message box
+        function showMessageBox(title, content) {
+            document.getElementById('message-box-title').textContent = title;
+            document.getElementById('message-box-content').textContent = content;
+            document.getElementById('message-box-container').classList.remove('hidden');
+        }
+
+        document.getElementById('message-box-close').addEventListener('click', () => {
+            document.getElementById('message-box-container').classList.add('hidden');
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const sections = document.querySelectorAll('.page-section');
+            const navLinks = document.querySelectorAll('.nav-link');
+            const dashboardNavLinks = document.querySelectorAll('.dashboard-nav-link');
+            const joinYouthBtn = document.getElementById('join-youth-btn');
+            const contributeExpertiseLink = document.getElementById('contribute-expertise-link');
+            const roleSelectCards = document.querySelectorAll('.role-select-card');
+            const requestAssistanceBtn = document.getElementById('request-assistance-btn');
+            const backButtons = document.querySelectorAll('.back-btn'); // New: Select all back buttons
+
+            const youthSignupForm = document.getElementById('youth-signup-form');
+            const contributorSignupForm = document.getElementById('contributor-signup-form');
+
+            const chatOverlay = document.getElementById('chat-overlay');
+            const chatCloseBtn = document.getElementById('chat-close-btn');
+            const chatHeader = document.getElementById('chat-header');
+            const chatMessagesDiv = document.getElementById('chat-messages');
+            const chatInput = document.getElementById('chat-input');
+            const chatSendBtn = document.getElementById('chat-send-btn');
+            let activeChatPartnerId = null; // ID of the user currently being chatted with
+
+            let currentPath = window.location.hash.substring(1) || 'home';
+
+            // --- History API Navigation ---
+            function updateUIForPath(path) {
+                sections.forEach(section => {
+                    if (section.id === path) {
+                        section.classList.add('active');
+                    } else {
+                        section.classList.remove('active');
+                    }
+                });
+                window.scrollTo(0, 0);
+                const mobileMenu = document.getElementById('mobile-menu');
+                if (!mobileMenu.classList.contains('hidden')) {
+                    mobileMenu.classList.add('hidden');
+                }
+                currentPath = path;
+
+                // Dynamically load data for active sections
+                if (path === 'youth-dashboard') {
+                    renderRecommendedMentors();
+                    createYouthProgressChart();
+                } else if (path === 'mentor-dashboard') {
+                    createMentorImpactChart();
+                } else if (path === 'find-mentors') {
+                    fetchMentors();
+                } else if (path === 'events') {
+                    fetchEvents();
+                } else if (path === 'jobs') {
+                    fetchJobs();
+                } else if (path === 'resources') {
+                    fetchResources();
+                }
+            }
+
+            function navigateTo(path, pushState = true) {
+                if (pushState) {
+                    history.pushState({ path: path }, '', `#${path}`);
+                }
+                updateUIForPath(path);
+            }
+
+            window.addEventListener('popstate', (event) => {
+                const path = event.state?.path || 'home';
+                updateUIForPath(path);
+            });
+
+            // Initial navigation on page load
+            navigateTo(currentPath, false); 
+
+            // --- General Event Listeners ---
+            navLinks.forEach(link => link.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo(e.currentTarget.getAttribute('href').substring(1));
+            }));
+            dashboardNavLinks.forEach(link => link.addEventListener('click', (e) => {
+                e.preventDefault();
+                navigateTo(e.currentTarget.getAttribute('href').substring(1));
+            }));
+
+            // New: Back button functionality
+            backButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    history.back();
+                });
+            });
+
+
+            // --- Home Page Buttons ---
+            if (joinYouthBtn) {
+                joinYouthBtn.addEventListener('click', () => navigateTo('youth-signup'));
+            }
+            if (contributeExpertiseLink) {
+                contributeExpertiseLink.addEventListener('click', () => navigateTo('contributor-signup'));
+            }
+
+            // --- Youth Signup Form ---
+            if (youthSignupForm) {
+                youthSignupForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(youthSignupForm);
+                    const userData = Object.fromEntries(formData.entries());
+                    userData.role = 'youth';
+                    // In a real app, you'd send this to the backend:
+                    try {
+                        // const response = await fetch(`${API_BASE_URL}/signup/youth`, {
+                        //     method: 'POST',
+                        //     headers: { 'Content-Type': 'application/json' },
+                        //     body: JSON.stringify(userData)
+                        // });
+                        // const result = await response.json();
+                        // if (response.ok) {
+                        //     showMessageBox('Success', 'Youth profile created successfully!');
+                        //     currentUser = { id: 'new-youth-id', name: userData.name, role: 'youth' }; // Mock login
+                        //     navigateTo('youth-dashboard');
+                        // } else {
+                        //     showMessageBox('Error', result.message || 'Failed to create youth profile.');
+                        // }
+                        showMessageBox('Success', 'Youth profile created successfully!');
+                        currentUser = { id: 'youth1', name: userData.name, role: 'youth' }; // Mock login
+                        navigateTo('youth-dashboard');
+                    } catch (error) {
+                        console.error('Error during youth signup:', error);
+                        showMessageBox('Network Error', 'Could not connect to the server. Please try again later.');
+                    }
+                });
+            }
+
+            // --- Contributor Signup Form ---
+            if (contributorSignupForm) {
+                contributorSignupForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(contributorSignupForm);
+                    const userData = Object.fromEntries(formData.entries());
+                    userData.role = 'contributor';
+                    // In a real app, you'd send this to the backend:
+                    try {
+                        // const response = await fetch(`${API_BASE_URL}/signup/contributor`, {
+                        //     method: 'POST',
+                        //     headers: { 'Content-Type': 'application/json' },
+                        //     body: JSON.stringify(userData)
+                        // });
+                        // const result = await response.json();
+                        // if (response.ok) {
+                        //     showMessageBox('Success', 'Contributor profile created successfully! Now choose your role.');
+                        //     currentUser = { id: 'new-contributor-id', name: userData.name, role: 'contributor' }; // Mock login
+                        //     navigateTo('role-selection');
+                        // } else {
+                        //     showMessageBox('Error', result.message || 'Failed to create contributor profile.');
+                        // }
+                        showMessageBox('Success', 'Contributor profile created successfully! Now choose your role.');
+                        currentUser = { id: 'mentor1', name: userData.name, role: 'contributor' }; // Mock login
+                        navigateTo('role-selection');
+                    } catch (error) {
+                        console.error('Error during contributor signup:', error);
+                        showMessageBox('Network Error', 'Could not connect to the server. Please try again later.');
+                    }
+                });
+            }
+
+
+            // --- Role Selection for Contributors ---
+            if (roleSelectCards) {
+                roleSelectCards.forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        const role = e.currentTarget.dataset.role;
+                        // In a real app, you would update the user's role in the backend
+                        showMessageBox('Role Selected', `You have selected to be a ${role}!`);
+                        navigateTo('mentor-dashboard'); 
+                    });
+                });
+            }
+
+            // --- Youth Dashboard: Request Assistance Button ---
+            if (requestAssistanceBtn) {
+                requestAssistanceBtn.addEventListener('click', async () => {
+                    if (!currentUser) {
+                        showMessageBox('Not Logged In', 'Please log in or create a profile to request assistance.');
+                        return;
+                    }
+                    showMessageBox('Request Submitted', 'Your request for general assistance has been submitted. Our support team will be in touch shortly!');
+                    // In a real app, you would send this request to the backend:
+                    // try {
+                    //     const response = await fetch(`${API_BASE_URL}/requestAssistance`, {
+                    //         method: 'POST',
+                    //         headers: { 'Content-Type': 'application/json' },
+                    //         body: JSON.stringify({ userId: currentUser.id, type: 'general-assistance', details: 'User needs help finding a mentor.' })
+                    //     });
+                    //     const result = await response.json();
+                    //     if (response.ok) {
+                    //         showMessageBox('Request Sent', 'Your request has been sent successfully!');
+                    //     } else {
+                    //         showMessageBox('Error', result.message || 'Failed to send request.');
+                    //     }
+                    // } catch (error) {
+                    //     console.error('Error sending assistance request:', error);
+                    //     showMessageBox('Network Error', 'Could not connect to the server. Please try again later.');
+                    // }
+                });
+            }
+
+            // --- Mobile Sidebar Toggle ---
+            document.getElementById('mobile-menu-button').addEventListener('click', () => {
+                document.getElementById('mobile-menu').classList.toggle('hidden');
+            });
+
+            function setupSidebarToggle(buttonId, sidebarId) {
+                const button = document.getElementById(buttonId);
+                const sidebar = document.getElementById(sidebarId);
+                if(button && sidebar) {
+                    button.addEventListener('click', () => {
+                        sidebar.classList.toggle('open');
+                    });
+                }
+            }
+            setupSidebarToggle('youth-sidebar-toggle', 'youth-sidebar');
+            setupSidebarToggle('mentor-sidebar-toggle', 'mentor-sidebar');
+
+            // --- Chat Functionality ---
+            function openChat(partnerId, partnerName) {
+                if (!currentUser) {
+                    showMessageBox('Login Required', 'Please log in to start a chat.');
+                    return;
+                }
+                activeChatPartnerId = partnerId;
+                chatHeader.textContent = `Chat with ${partnerName}`;
+                chatMessagesDiv.innerHTML = `<div class="text-neutral-500 text-sm mb-2">You are chatting with ${partnerName}.</div>`; // Clear messages
+                // In a real app, load chat history here
+                chatOverlay.classList.remove('hidden');
+            }
+
+            function closeChat() {
+                chatOverlay.classList.add('hidden');
+                activeChatPartnerId = null;
+                chatInput.value = '';
+            }
+
+            chatCloseBtn.addEventListener('click', closeChat);
+            
+            chatSendBtn.addEventListener('click', async () => {
+                const message = chatInput.value.trim();
+                if (message && currentUser && activeChatPartnerId) {
+                    // Append message to UI
+                    const messageElement = document.createElement('div');
+                    messageElement.className = 'p-2 my-1 rounded-lg bg-blue-100 self-end text-right';
+                    messageElement.textContent = `You: ${message}`;
+                    chatMessagesDiv.appendChild(messageElement);
+                    chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight; // Scroll to bottom
+                    chatInput.value = '';
+
+                    // In a real app, send message to backend
+                    // try {
+                    //     await fetch(`${API_BASE_URL}/chat/message`, {
+                    //         method: 'POST',
+                    //         headers: { 'Content-Type': 'application/json' },
+                    //         body: JSON.stringify({
+                    //             senderId: currentUser.id,
+                    //             receiverId: activeChatPartnerId,
+                    //             message: message,
+                    //             timestamp: new Date().toISOString()
+                    //         })
+                    //     });
+                    // } catch (error) {
+                    //     console.error('Error sending chat message:', error);
+                    //     // Optionally show an error message in chat
+                    // }
+                }
+            });
+
+            // Event delegation for opening chat from various buttons
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('open-chat-btn')) {
+                    const userId = e.target.dataset.userId;
+                    // Find user name from mock data (or fetched data)
+                    const userName = mockData.mentors.find(m => m.id === userId)?.name || mockData.users.find(u => u.id === userId)?.name || 'User';
+                    openChat(userId, userName);
+                }
+            });
+
+
+            // --- Backend Integration (Placeholders using mockData for client-side demo) ---
+            async function fetchData(endpoint) {
+                // In a real app, you'd add token for authenticated requests
+                try {
+                    const response = await fetch(`${API_BASE_URL}/${endpoint}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    console.error(`Error fetching ${endpoint}:`, error);
+                    showMessageBox('Data Error', `Failed to load ${endpoint}. Please ensure your Firebase functions are deployed and API_BASE_URL is correct.`);
+                    return []; // Return empty array on error
+                }
+            }
+            
+            // Mock data for initial rendering and client-side filtering
+            const mockData = {
+                mentors: [
+                    { id: 'mentor1', name: 'Dr. Aisha Kamanzi', title: 'Senior Data Scientist', company: 'TechCorp', expertise: ['Data Science', 'AI', 'Career Growth'], category: 'Tech', avatar: 'https://placehold.co/80x80/28A745/FFFFFF?text=A' },
+                    { id: 'mentor2', name: 'David Muhizi', title: 'Investment Banker', company: 'Global Finance', expertise: ['Finance', 'M&A', 'Investing'], category: 'Finance', avatar: 'https://placehold.co/80x80/007BFF/FFFFFF?text=D' },
+                    { id: 'mentor3', name: 'Dr. Eliane Uwera', title: 'Cardiologist', company: 'Kigali Central Hospital', expertise: ['Medicine', 'Public Health'], category: 'Healthcare', avatar: 'https://placehold.co/80x80/FFC107/FFFFFF?text=E' },
+                    { id: 'mentor4', name: 'Samuel Byusa', title: 'Software Engineer', company: 'Innovate Rwanda', expertise: ['Web Dev', 'Mobile Apps'], category: 'Tech', avatar: 'https://placehold.co/80x80/343A40/FFFFFF?text=S' }
+                ],
+                users: [ // Mock users for chat (youth)
+                    { id: 'youth1', name: 'Jane Doe', role: 'youth', avatar: 'https://placehold.co/40x40/007BFF/FFFFFF?text=J' },
+                    { id: 'youth2', name: 'Peter Gisa', role: 'youth', avatar: 'https://placehold.co/40x40/FFC107/FFFFFF?text=P' }
+                ],
+                events: [
+                    { title: 'Tech Interview Prep', host: 'Samuel Byusa', date: 'August 28, 2025', type: 'Webinar', description: 'Master the art of technical interviews with insights from a seasoned software engineer.' },
+                    { title: 'Networking 101 for Young Professionals', host: 'David Muhizi', date: 'September 05, 2025', type: 'Q&A Session', description: 'Learn how to build and leverage your professional network for career success.' },
+                    { title: 'A Day in the Life of a Doctor', host: 'Dr. Eliane Uwera', date: 'September 12, 2025', type: 'Skill Workshop', description: 'An interactive session for aspiring medical professionals.' }
+                ],
+                jobs: [
+                    { title: 'Junior Software Developer', company: 'Innovate Rwanda', location: 'Kigali, Rwanda', type: 'Full-time' },
+                    { title: 'Financial Analyst Intern', company: 'Bank of Kigali', location: 'Kigali, Rwanda', type: 'Internship' },
+                    { title: 'Marketing Assistant', company: 'MTN Rwanda', location: 'Kigali, Rwanda', type: 'Full-time' }
+                ],
+                resources: [
+                    { title: 'Building Your First Web App', author: 'Samuel Byusa', type: 'PDF Guide', category: 'Tech' },
+                    { title: 'Understanding Stock Market Basics', author: 'David Muhizi', type: 'Article', category: 'Finance' },
+                    { title: 'CV & Cover Letter Template', author: 'Rwanda Connect', type: 'Template', category: 'Career' }
+                ]
+            };
+
+
+            async function fetchMentors(filter = 'all', searchTerm = '') {
+                // In a real app: const mentors = await fetchData('mentors');
+                const mentors = mockData.mentors; // Using mock data for demo
+
+                const grid = document.getElementById('mentors-grid');
+                if(!grid) return;
+                let filteredMentors = mentors;
+
+                if (filter !== 'all') {
+                    filteredMentors = filteredMentors.filter(m => m.category === filter);
+                }
+                
+                if (searchTerm) {
+                    filteredMentors = filteredMentors.filter(m => 
+                        m.name.toLowerCase().includes(searchTerm) || 
+                        m.expertise.join(' ').toLowerCase().includes(searchTerm)
+                    );
+                }
+
+                grid.innerHTML = filteredMentors.map(mentor => `
+                    <div class="bg-white p-6 rounded-xl shadow-md text-center transform hover:scale-105 transition-transform">
+                        <img src="${mentor.avatar}" alt="${mentor.name}" class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-neutral-200">
+                        <h3 class="text-xl font-bold">${mentor.name}</h3>
+                        <p class="text-blue-600 font-medium">${mentor.title}</p>
+                        <p class="text-neutral-500 mb-4">${mentor.company}</p>
+                        <div class="flex flex-wrap justify-center gap-2 mb-4">
+                            ${mentor.expertise.map(e => `<span class="bg-neutral-100 text-neutral-700 text-xs font-semibold px-2.5 py-1 rounded-full">${e}</span>`).join('')}
+                        </div>
+                        <button class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700" data-mentor-id="${mentor.id}">Send Request</button>
+                    </div>
+                `).join('');
+                document.querySelectorAll('#mentors-grid button').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const mentorId = e.target.dataset.mentorId;
+                        showMessageBox('Mentorship Request Sent', `Your request to mentor ID: ${mentorId} has been sent!`);
+                        // In a real app, send request to backend:
+                        // fetch(`${API_BASE_URL}/mentorshipRequest`, { /* ... */ });
+                    });
+                });
+            }
+
+            const mentorFilterButtons = document.getElementById('mentor-filter-buttons');
+            if(mentorFilterButtons) {
+                mentorFilterButtons.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('mentor-filter-btn')) {
+                        document.querySelectorAll('.mentor-filter-btn').forEach(btn => {
+                            btn.classList.remove('bg-blue-500', 'text-white');
+                            btn.classList.add('bg-neutral-200', 'text-neutral-700');
+                        });
+                        e.target.classList.add('bg-blue-500', 'text-white');
+                        e.target.classList.remove('bg-neutral-200', 'text-neutral-700');
+                        fetchMentors(e.target.dataset.filter, document.getElementById('mentor-search').value.toLowerCase());
+                    }
+                });
+            }
+
+            const mentorSearchInput = document.getElementById('mentor-search');
+            if(mentorSearchInput) {
+                mentorSearchInput.addEventListener('input', (e) => {
+                    const activeFilter = document.querySelector('.mentor-filter-btn.bg-blue-500')?.dataset.filter || 'all';
+                    fetchMentors(activeFilter, e.target.value.toLowerCase());
+                });
+            }
+
+            async function renderRecommendedMentors() {
+                // In a real app: const recommended = await fetchData('recommendedMentors');
+                const recommended = mockData.mentors.slice(1, 3); // Using mock data for demo
+                const container = document.getElementById('recommended-mentors-container');
+                if(!container) return;
+                container.innerHTML = recommended.map(mentor => `
+                    <div class="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
+                        <div class="flex items-center">
+                            <img src="${mentor.avatar}" alt="${mentor.name}" class="w-10 h-10 rounded-full mr-4">
+                            <div>
+                                <h4 class="font-semibold">${mentor.name}</h4>
+                                <p class="text-sm text-neutral-500">${mentor.expertise[0]}</p>
+                            </div>
+                        </div>
+                        <button class="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full">View</button>
+                    </div>
+                `).join('');
+            }
+
+            async function fetchEvents() {
+                // In a real app: const events = await fetchData('events');
+                const events = mockData.events; // Using mock data for demo
+                const list = document.getElementById('events-list');
+                if(!list) return;
+                list.innerHTML = events.map(event => `
+                    <div class="bg-white p-6 rounded-xl shadow-md flex flex-col md:flex-row items-start md:items-center gap-4">
+                        <div class="flex-grow">
+                            <span class="text-sm font-semibold text-blue-600">${event.type.toUpperCase()}</span>
+                            <h3 class="text-xl font-bold mt-1">${event.title}</h3>
+                            <p class="text-neutral-600 mt-1">${event.description}</p>
+                            <p class="text-sm text-neutral-500 mt-2">Hosted by: ${event.host} on ${event.date}</p>
+                        </div>
+                        <button class="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold whitespace-nowrap">Register</button>
+                    </div>
+                `).join('');
+            }
+
+            async function fetchJobs() {
+                // In a real app: const jobs = await fetchData('jobs');
+                const jobs = mockData.jobs; // Using mock data for demo
+                const list = document.getElementById('jobs-list');
+                if(!list) return;
+                list.innerHTML = jobs.map(job => `
+                    <div class="bg-white p-6 rounded-xl shadow-md flex flex-col md:flex-row items-start md:items-center gap-4">
+                        <div class="flex-grow">
+                            <h3 class="text-lg font-bold">${job.title}</h3>
+                            <p class="text-neutral-600">${job.company} - ${job.location}</p>
+                        </div>
+                        <span class="bg-green-100 text-green-700 text-sm font-medium px-3 py-1 rounded-full">${job.type}</span>
+                        <button class="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded-lg font-semibold">Apply</button>
+                    </div>
+                `).join('');
+            }
+
+            async function fetchResources() {
+                // In a real app: const resources = await fetchData('resources');
+                const resources = mockData.resources; // Using mock data for demo
+                const grid = document.getElementById('resources-grid');
+                if(!grid) return;
+                grid.innerHTML = resources.map(resource => `
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <span class="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">${resource.category}</span>
+                        <h3 class="text-lg font-bold mt-3">${resource.title}</h3>
+                        <p class="text-sm text-neutral-500 mb-4">By ${resource.author}</p>
+                        <button class="w-full bg-neutral-200 text-neutral-700 py-2 rounded-lg font-semibold hover:bg-neutral-300">View Resource</button>
+                    </div>
+                `).join('');
+            }
+
+            let youthProgressChartInstance;
+            function createYouthProgressChart() {
+                const ctx = document.getElementById('youthProgressChart')?.getContext('2d');
+                if (!ctx) return;
+                if (youthProgressChartInstance) {
+                    youthProgressChartInstance.destroy();
+                }
+                youthProgressChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Completed Goals', 'In Progress Goals'],
+                        datasets: [{
+                            label: 'Goal Progress',
+                            data: [75, 25], // Example data, would be dynamic from backend
+                            backgroundColor: ['#28A745', '#E9ECEF'],
+                            borderColor: '#FFFFFF',
+                            borderWidth: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: { enabled: true }
+                        }
+                    }
+                });
+            }
+
+            let mentorImpactChartInstance;
+            function createMentorImpactChart() {
+                const ctx = document.getElementById('mentorImpactChart')?.getContext('2d');
+                if (!ctx) return;
+                if (mentorImpactChartInstance) {
+                    mentorImpactChartInstance.destroy();
+                }
+                mentorImpactChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Mentees', 'Hours', 'Resources'],
+                        datasets: [{
+                            label: 'My Impact',
+                            data: [3, 12, 5], // Example data, would be dynamic from backend
+                            backgroundColor: ['#007BFF', '#28A745', '#FFC107'],
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
